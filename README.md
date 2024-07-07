@@ -89,7 +89,52 @@ looks like this:
 |**e0**|e1|f8|98|11|69|d9|8e|94|9b|1e|87|e9|ce|55|28|df|
 |**f0**|8c|a1|89|0d|bf|e6|42|68|41|99|2d|0f|b0|54|bb|16|
 
-For example byte `0x42` will be mapped to `0x2c`. Every 8-bit value is mapped to different 8-bit value. For AES decryption, s-box is defined in the following way:
+For example byte `0x42` will be mapped to `0x2c`. Every 8-bit value is mapped to different 8-bit value, which can be shown as affine transformation:
+
+$$
+\begin{bmatrix}
+  s_0\\
+  s_1\\
+  s_2\\
+  s_3\\
+  s_4\\
+  s_5\\
+  s_6\\
+  s_7\\
+\end{bmatrix} = \begin{bmatrix}
+1 & 0 & 0 & 0 & 1 & 1 & 1 & 1 \\
+1 & 1 & 0 & 0 & 0 & 1 & 1 & 1 \\
+1 & 1 & 1 & 0 & 0 & 0 & 1 & 1 \\
+1 & 1 & 1 & 1 & 0 & 0 & 0 & 1 \\
+1 & 1 & 1 & 1 & 1 & 0 & 0 & 0 \\
+0 & 1 & 1 & 1 & 1 & 1 & 0 & 0 \\
+0 & 0 & 1 & 1 & 1 & 1 & 1 & 0 \\
+0 & 0 & 0 & 1 & 1 & 1 & 1 & 1 \\
+\end{bmatrix} \begin{bmatrix}
+  b_0\\
+  b_1\\
+  b_2\\
+  b_3\\
+  b_4\\
+  b_5\\
+  b_6\\
+  b_7\\
+\end{bmatrix} + \begin{bmatrix}
+  1\\
+  1\\
+  0\\
+  0\\
+  0\\
+  1\\
+  1\\
+  0\\
+\end{bmatrix}
+$$
+
+Where $[s_0,s_1,...]$ is the output of S-box and $[b_0,b_1,...]$ is multiplicative inverse.
+
+
+For AES decryption, s-box is defined in the following way:
 
 |      |00|01|02|03|04|05|06|07|08|09|0a|0b|0c|0d|0e|0f|
 |------|--|--|--|--|--|--|--|--|--|--|--|--|--|--|--|--|
