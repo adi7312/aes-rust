@@ -14,7 +14,7 @@ field: addition and multiplication, which follow specific rules.
 
 Addition is performed by adding two of polynomials together, 
 and reducing the result modulo the characteristic. In finite field
-with characteristics 2 ($GF(2^n)$), addition can be performed as XOR operation. Symbol $\oplus$ or $+$ maybe used to denote addition in finite field.
+with characteristics 2 $GF(2^n)$, addition can be performed as XOR operation. Symbol $\oplus$ or $+$ maybe used to denote addition in finite field.
 
 | **Polynomial**  | $(x^6+x^4+x+1) + (x^7+x^6+x^3+x) = x^7 + x^4 + x^3 + 1$ |
 |:---------------:|---------------------------------------------------------|
@@ -26,7 +26,7 @@ with characteristics 2 ($GF(2^n)$), addition can be performed as XOR operation. 
 
 Multiplication is multiplication modulo an irreducible polynomial used to define finite field. Symbol $\times$ or $\cdot$ maybe used to denote multiplication in finite field.
 
-For example: $a = x^2 + x + 1 \ (7 - 111b),\ b = x + 1 \ (3 - 011b)$ and primitive polynomial $x^4+x+1$ ($GF(2^4)$).
+For example: $a = x^2 + x + 1 \ (7 - 111b),\ b = x + 1 \ (3 - 011b)$ and primitive polynomial $x^4+x+1$ in $GF(2^4)$.
 
 $$
 a \cdot b = (x^2 + x + 1) \cdot (x+1) = x^3 + x^2 + x^2 + x + x + 1 = x^3 + 1
@@ -49,6 +49,7 @@ Since the power of multiplication is less than $x^4$, there is no need of perfor
 ### Rijndael's Finite Field
 
 AES finite field uses the characteristic 2 with 256 elements: $GF(2^8)$, which employes the following irreducible polynomial:
+
 $$
 x^8 + x^4 + x^3 + x + 1
 $$
