@@ -1,4 +1,6 @@
-const RCON: [u8;10] = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36];
+use crate::aes::modes::ctr;
+
+const RCON: [u8;11] = [0x0,0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36];
 const SBOX: [u8;256] = [
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
     0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -37,6 +39,32 @@ const INV_SBOX: [u8; 256] = [
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d,
 ];
 
+// Strategy pattern for AES encryption and decryption
+// It allows better support for different modes of AES
+pub trait AesMode {
+
+    fn encrypt(&self, input: &[u8; 16], key: &[u8; 16]) -> [u8; 16];
+    fn decrypt(&self, input: &[u8; 16], key: &[u8; 16]) -> [u8; 16];
+}
+
+pub struct AES<T: AesMode>{
+    mode: T
+}
+
+impl <T: AesMode> AES<T> {
+    pub fn new(mode: T) -> Self {
+        AES { mode }
+    }
+
+    pub fn encrypt(&self, input: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
+        self.mode.encrypt(input, key)
+    }
+
+    pub fn decrypt(&self, input: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
+        self.mode.decrypt(input, key)
+    }
+}
+
 fn rot_word(){
 
 }
@@ -47,10 +75,58 @@ fn rcon(round: u8) -> [u8;4]{
     rcon_vec
 }
 
-fn sub_word(){
-
+fn xor(a: &[u8;4], b: &[u8;4]) -> [u8;4] {
+    let mut result: [u8;4] = [0u8;4];
+    for i in 0..4 {
+        result[i] = a[i] ^ b[i];
+    }
+    result
 }
 
-fn key_expansion(key: [u8;16]){
+fn substitute_byte(byte: u8, encryption_mode: bool) -> u8 {
+    if encryption_mode {
+        SBOX[byte as usize]
+    } else {
+        INV_SBOX[byte as usize]
+    }
+}
 
+fn substitute_word(word: &[u8;4]) -> [u8;4] {
+    let mut result: [u8;4] = [0u8;4];
+    for i in 0..4 {
+        result[i] = substitute_byte(word[i], true);
+    }
+    result
+}
+
+fn rotate_word(word: &[u8;4]) -> [u8;4] {
+    let mut result: [u8;4] = [0u8;4];
+    for i in 0..4 {
+        result[i] = word[(i + 1) % 4];
+    }
+    result
+}
+
+fn key_expansion(key: &[u8;16]) -> [[u8;4];44] {
+    let mut matrix_key: [[u8;4];4] = [[0u8;4];4];
+    let mut expanded_key: [[u8;4];44] = [[0u8;4];44];
+    let word_size = 4;
+    for i in 0..16 {
+        matrix_key[i/4][i%4] = key[i];
+    }
+    for i in 0..44 {
+        if i < word_size {
+            expanded_key[i] = matrix_key[i];
+        } else if i % word_size == 0 {
+            let mut temp: [u8;4] = [0u8;4];
+            temp[0] = RCON[i/word_size];
+            expanded_key[i] = xor(
+                &xor(&expanded_key[i - 1],&substitute_word(&rotate_word(&expanded_key[i - 1]))),
+                &temp
+            );
+        } else {
+            expanded_key[i] = xor(&expanded_key[i - 1], &expanded_key[i - word_size]);
+        }
+    }
+    expanded_key
 }
