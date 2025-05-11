@@ -1,4 +1,5 @@
 use crate::aes::modes::ctr;
+use crate::aes::math::galois;
 
 const RCON: [u8;11] = [0x0,0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36];
 const SBOX: [u8;256] = [
@@ -42,32 +43,28 @@ const INV_SBOX: [u8; 256] = [
 // Strategy pattern for AES encryption and decryption
 // It allows better support for different modes of AES
 pub trait AesMode {
-
-    fn encrypt(&self, input: &[u8; 16], key: &[u8; 16]) -> [u8; 16];
-    fn decrypt(&self, input: &[u8; 16], key: &[u8; 16]) -> [u8; 16];
+    fn encrypt(&self, input: &[u8], expanded_key: &[[u8;4];44]) -> Vec<u8>;
+    fn decrypt(&self, input: &[u8], expanded_key: &[[u8;4];44]) -> Vec<u8>;
 }
 
 pub struct AES<T: AesMode>{
-    mode: T
+    mode: T,
+    key: [u8; 16],
 }
 
 impl <T: AesMode> AES<T> {
-    pub fn new(mode: T) -> Self {
-        AES { mode }
+    pub fn new(mode: T, key: &[u8;16]) -> Self {
+        AES { mode, key: *key }
+    }
+    pub fn encrypt(&self, input: &[u8]) -> Vec<u8> {
+        self.mode.encrypt(input, &key_expansion(&self.key))
     }
 
-    pub fn encrypt(&self, input: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
-        self.mode.encrypt(input, key)
-    }
-
-    pub fn decrypt(&self, input: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
-        self.mode.decrypt(input, key)
+    pub fn decrypt(&self, input: &[u8]) -> Vec<u8> {
+        self.mode.decrypt(input, &key_expansion(&self.key))
     }
 }
 
-fn rot_word(){
-
-}
 
 fn rcon(round: u8) -> [u8;4]{
     let mut rcon_vec: [u8;4] = [0u8;4];
@@ -129,4 +126,125 @@ fn key_expansion(key: &[u8;16]) -> [[u8;4];44] {
         }
     }
     expanded_key
+}
+
+fn sub_block(block: &mut [[u8;4];4], encryption_mode: bool){
+    for i in 0..4 {
+        for j in 0..4 {
+            block[i][j] = substitute_byte(block[i][j], encryption_mode);
+        }
+    }
+}
+
+fn add_round_key(block: &mut[[u8;4];4], round_key: &[[u8;4];4]){
+    for i in 0..4 {
+        for j in 0..4 {
+            block[i][j] = block[i][j] ^ round_key[i][j];
+        }
+    }
+}
+
+fn shift_rows(block: &mut[[u8;4];4]){
+    
+    for i in 1..4{
+        let mut tmp = vec![0u8; i as usize];
+        for j in 0..i {
+            tmp[j as usize] = block[i as usize][j as usize];
+        }
+        for j in 0..4-i{
+            block[i as usize][j as usize] = block[i as usize][(j + i) as usize];
+        }
+        for j in 0..i{
+            block[i as usize][(3-j) as usize] = tmp[(i-j-1) as usize];
+        }
+    }
+}
+
+fn inv_shift_rows(block: &mut[[u8;4];4]){
+    for i in (1..4).rev(){
+        let mut tmp = vec![0u8; i as usize];
+        for j in 0..i {
+            tmp[j as usize] = block[(4-i) as usize][j as usize];
+        }
+        for j in 0..4-i{
+            block[(4-i) as usize][(j) as usize] = block[(4-i) as usize][(j + i) as usize];
+        }
+        for j in 0..i{
+            block[(4-i) as usize][(3-j) as usize] = tmp[(i-j-1) as usize];
+        }
+    }
+}
+
+fn mix_columns(block: &mut[[u8;4];4]){
+    for i in 0..4 {
+        let mut col = [0u8;4];
+        for j in 0..4 {
+            col[j] = block[j][i];
+        }
+        block[0][i] = galois::galois_multiply(col[0], 2) ^ galois::galois_multiply(col[1], 3) ^ col[3] ^ col[2];
+        block[1][i] = col[0] ^ galois::galois_multiply(col[1], 2) ^ galois::galois_multiply(col[2], 3) ^ col[3];
+        block[2][i] = col[0] ^ col[1] ^ galois::galois_multiply(col[2], 2) ^ galois::galois_multiply(col[3], 3);
+        block[3][i] = galois::galois_multiply(col[0], 3) ^ col[1] ^ col[2] ^ galois::galois_multiply(col[3], 2);
+    }
+}
+
+fn inv_mix_columns(block: &mut[[u8;4];4]){
+    for i in 0..4 {
+        let mut col = [0u8;4];
+        for j in 0..4 {
+            col[j] = block[j][i];
+        }
+        block[0][i] = galois::galois_multiply(col[0], 14) ^ galois::galois_multiply(col[1], 11) ^ galois::galois_multiply(col[2], 13) ^ galois::galois_multiply(col[3], 9);
+        block[1][i] = galois::galois_multiply(col[0], 9) ^ galois::galois_multiply(col[1], 14) ^ galois::galois_multiply(col[2], 11) ^ galois::galois_multiply(col[3], 13);
+        block[2][i] = galois::galois_multiply(col[0], 13) ^ galois::galois_multiply(col[1], 9) ^ galois::galois_multiply(col[2], 14) ^ galois::galois_multiply(col[3], 11);
+        block[3][i] = galois::galois_multiply(col[0], 11) ^ galois::galois_multiply(col[1], 13) ^ galois::galois_multiply(col[2], 9) ^ galois::galois_multiply(col[3], 14);
+    }
+}
+
+pub fn encrypt_block(input: &[u8; 16], expanded_key: &[[u8; 4]; 44]) -> [u8; 16] {
+    let mut result = [0u8; 16];
+    let mut input_matrix = [[0u8; 4]; 4];
+    for i in 0..16 {
+        input_matrix[i % 4][i / 4] = input[i];
+    }
+    let round_key: &[[u8;4];4] = &expanded_key[40..44].try_into().expect("Failed to convert expanded key to 4x4 matrix");
+    add_round_key(&mut input_matrix, &round_key);
+    for i in 1..10 {
+        sub_block(&mut input_matrix, true);
+        shift_rows(&mut input_matrix);
+        mix_columns(&mut input_matrix);
+        let round_key: &[[u8;4];4] = &expanded_key[(i*4)..((i+1)*4)].try_into().expect("Failed to convert expanded key to 4x4 matrix");
+        add_round_key(&mut input_matrix, &round_key);
+    }
+    sub_block(&mut input_matrix, true);
+    shift_rows(&mut input_matrix);
+    let round_key: &[[u8;4];4] = &expanded_key[40..44].try_into().expect("Failed to convert expanded key to 4x4 matrix");
+    add_round_key(&mut input_matrix, &round_key);
+    for i in 0..16 {
+        result[i] = input_matrix[i % 4][i / 4];
+    }
+    result
+}
+
+fn decrypt_function(input: &[u8;16], expanded_key: &[[u8;4];44]) -> [u8;16]{
+    let mut result = [0u8; 16];
+    let mut input_matrix = [[0u8; 4]; 4];
+    for i in 0..16 {
+        input_matrix[i % 4][i / 4] = input[i];
+    }
+    let round_key: &[[u8;4];4] = &expanded_key[40..44].try_into().expect("Failed to convert expanded key to 4x4 matrix");
+    add_round_key(&mut input_matrix, round_key);
+    inv_shift_rows(&mut input_matrix);
+    inv_mix_columns(&mut input_matrix);
+    for i in (1..10).rev() {
+        let round_key = &expanded_key[(i*4)..((i+1)*4)].try_into().expect("Failed to convert expanded key to 4x4 matrix");
+        add_round_key(&mut input_matrix, round_key);
+        inv_mix_columns(&mut input_matrix);
+        inv_shift_rows(&mut input_matrix);
+        sub_block(&mut input_matrix, false);
+    }
+    for i in 0..16 {
+        result[i] = input_matrix[i % 4][i / 4];
+    }
+    result
 }
