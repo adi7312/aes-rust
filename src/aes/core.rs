@@ -226,7 +226,7 @@ pub fn encrypt_block(input: &[u8; 16], expanded_key: &[[u8; 4]; 44]) -> [u8; 16]
     result
 }
 
-fn decrypt_function(input: &[u8;16], expanded_key: &[[u8;4];44]) -> [u8;16]{
+fn decrypt_block(input: &[u8;16], expanded_key: &[[u8;4];44]) -> [u8;16]{
     let mut result = [0u8; 16];
     let mut input_matrix = [[0u8; 4]; 4];
     for i in 0..16 {
