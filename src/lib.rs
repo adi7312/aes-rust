@@ -1,30 +1,58 @@
 pub mod aes;
-use aes::core::{AES};
-use aes::modes::ctr::CTR;
+use aes::core::{pkcs7_pad, pkcs7_unpad, AesCipher, AES};
+use aes::modes::ctr::{CTR};
 
-use pyo3::types::PyBytes;
+use pyo3::types::{PyBytes, PyType};
 use pyo3::prelude::*;
 
+#[pyclass(name = "CTR")]
+struct PyCTR;
 
-#[pyfunction]
-fn encrypt(py: Python, key: &[u8], plaintext: &[u8])-> PyResult<Py<PyBytes>>{
-    let key_array: [u8; 16] = key.try_into().expect("Key length must be a multiple 16 bytes");
-    let aes = AES::new(CTR, &key_array);
-    let ciphertext = aes.encrypt(plaintext);
-    Ok(PyBytes::new(py, &ciphertext).into())
+#[pymethods]
+impl PyCTR {
+    #[new]
+    fn new() -> Self {
+        PyCTR
+    }
 }
 
-#[pyfunction]
-fn decrypt(py: Python, key: &[u8], ciphertext: &[u8])-> PyResult<Py<PyBytes>>{
-    let key_array: [u8; 16] = key.try_into().expect("Key length must be a multiple 16 bytes");
-    let aes = AES::new(CTR, &key_array);
-    let plaintext = aes.decrypt(ciphertext);
-    Ok(PyBytes::new(py, &plaintext).into())
+#[pyclass(name = "AES")]
+struct PyAES {
+    aes: Box<dyn AesCipher>,
 }
+
+#[pymethods]
+impl PyAES {
+    #[classmethod]
+    fn init(_cls: Bound<'_, PyType>, mode: &Bound<'_, PyAny>, nonce: &[u8], key: &[u8]) -> PyResult<Self> {
+        let key_array: [u8; 16] = key.try_into().expect("Key must be 16 bytes");
+        let nonce_array: [u8; 8] = nonce.try_into().expect("Nonce must be 8 bytes");
+        if mode.is_instance_of::<PyCTR>() {
+            Ok(PyAES {
+                aes: Box::new(AES::new(CTR, &key_array, Some(&nonce_array))),
+            })
+        } else {
+            unimplemented!("Only CTR mode is implemented")
+        }
+    }
+
+    fn encrypt<'p>(&self, py: Python<'p>, plaintext: &[u8]) -> PyResult<Py<PyBytes>> {
+        let padded = pkcs7_pad(plaintext, 16);
+        let ciphertext = self.aes.encrypt(&padded);
+        Ok(PyBytes::new(py, &ciphertext).into())
+    }
+
+    fn decrypt<'p>(&self, py: Python<'p>, ciphertext: &[u8]) -> PyResult<Py<PyBytes>> {
+        let plaintext = self.aes.decrypt(ciphertext);
+        let unpadded = pkcs7_unpad(&plaintext);
+        Ok(PyBytes::new(py, &unpadded).into())
+    }
+}
+
 
 #[pymodule]
 fn pyaes(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(decrypt, m)?)?;
-    m.add_function(wrap_pyfunction!(encrypt, m)?)?;
+    m.add_class::<PyAES>()?;
+    m.add_class::<PyCTR>()?;
     Ok(())
 }

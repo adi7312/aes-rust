@@ -1,19 +1,17 @@
 use std::sync::{Arc, Mutex};
 use crate::aes::core::{AesMode, encrypt_block};
-use rand::prelude::*;
+
 use std::thread;
 pub struct CTR;
 
 impl AesMode for CTR {
     
-    fn encrypt(&self, input: &[u8], expanded_key: &[[u8;4];44]) -> Vec<u8> {
+    fn encrypt(&self, input: &[u8], expanded_key: &[[u8;4];44], nonce: Option<&[u8;8]>) -> Vec<u8> {
         if input.len() % 16 != 0 {
             panic!("Input length must be a multiple of 16 bytes");
         }
         let mut result: Vec<u8> = Vec::new();
-        let mut nonce = [0u8;8];
-        let mut rng = rand::rng();
-        rng.fill_bytes(&mut nonce);
+        let mut nonce: [u8; 8] = *nonce.expect("Error");      
         result.extend_from_slice(&nonce);
         let blocks = process_blocks(input, &nonce,expanded_key);
         result.extend_from_slice(&blocks);
@@ -23,6 +21,7 @@ impl AesMode for CTR {
     fn decrypt(&self, input: &[u8], expanded_key: &[[u8;4];44]) -> Vec<u8> {
        process_blocks(&input[8..],&input[..8], expanded_key)
     }
+
 }
 
 fn process_blocks(input: &[u8], nonce: &[u8], expanded_key: &[[u8;4];44]) -> Vec<u8>{

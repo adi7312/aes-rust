@@ -1,3 +1,5 @@
+use rand::seq::IndexedRandom;
+
 use crate::aes::modes::ctr;
 use crate::aes::math::galois;
 
@@ -43,25 +45,43 @@ const INV_SBOX: [u8; 256] = [
 // Strategy pattern for AES encryption and decryption
 // It allows better support for different modes of AES
 pub trait AesMode {
-    fn encrypt(&self, input: &[u8], expanded_key: &[[u8;4];44]) -> Vec<u8>;
+    
+    fn encrypt(&self, input: &[u8], expanded_key: &[[u8;4];44], nonce: Option<&[u8;8]>) -> Vec<u8>;
     fn decrypt(&self, input: &[u8], expanded_key: &[[u8;4];44]) -> Vec<u8>;
+
+}
+
+pub trait AesCipher: Send + Sync {
+    fn encrypt(&self, input: &[u8]) -> Vec<u8>;
+    fn decrypt(&self, input: &[u8]) -> Vec<u8>;
 }
 
 pub struct AES<T: AesMode>{
     mode: T,
     key: [u8; 16],
+    nonce: Option<[u8;8]>
 }
 
-impl <T: AesMode> AES<T> {
-    pub fn new(mode: T, key: &[u8;16]) -> Self {
-        AES { mode, key: *key }
+impl<T: AesMode> AES<T> {
+    pub fn new(mode: T, key: &[u8;16], nonce: Option<&[u8;8]>) -> Self {
+        AES { mode, key: *key, nonce: nonce.copied() }
     }
     pub fn encrypt(&self, input: &[u8]) -> Vec<u8> {
-        self.mode.encrypt(input, &key_expansion(&self.key))
+        self.mode.encrypt(input, &key_expansion(&self.key), self.nonce.as_ref())
     }
 
     pub fn decrypt(&self, input: &[u8]) -> Vec<u8> {
         self.mode.decrypt(input, &key_expansion(&self.key))
+    }
+}
+
+impl<T: AesMode + Send + Sync + 'static> AesCipher for AES<T> {
+    fn encrypt(&self, input: &[u8]) -> Vec<u8> {
+        self.encrypt(input)
+    }
+
+    fn decrypt(&self, input: &[u8]) -> Vec<u8> {
+        self.decrypt(input)
     }
 }
 
@@ -201,6 +221,23 @@ fn inv_mix_columns(block: &mut[[u8;4];4]){
     }
 }
 
+pub fn pkcs7_pad(input: &[u8], block_size: usize) -> Vec<u8> {
+    let pad_len = block_size - (input.len() % block_size);
+    let mut padded = Vec::from(input);
+    padded.extend(vec![pad_len as u8; pad_len]);
+    padded
+}
+
+
+pub fn pkcs7_unpad(input: &[u8]) -> Vec<u8> {
+    let pad_len = *input.last().unwrap() as usize;
+    let len = input.len();
+    if pad_len == 0 || pad_len > len {
+        panic!("Invalid padding");
+    }
+    input[..len - pad_len].to_vec()
+}
+
 pub fn encrypt_block(input: &[u8; 16], expanded_key: &[[u8; 4]; 44]) -> [u8; 16] {
     let mut result = [0u8; 16];
     let mut input_matrix = [[0u8; 4]; 4];
@@ -226,7 +263,7 @@ pub fn encrypt_block(input: &[u8; 16], expanded_key: &[[u8; 4]; 44]) -> [u8; 16]
     result
 }
 
-fn decrypt_block(input: &[u8;16], expanded_key: &[[u8;4];44]) -> [u8;16]{
+pub fn decrypt_block(input: &[u8;16], expanded_key: &[[u8;4];44]) -> [u8;16]{
     let mut result = [0u8; 16];
     let mut input_matrix = [[0u8; 4]; 4];
     for i in 0..16 {
