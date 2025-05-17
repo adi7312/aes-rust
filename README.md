@@ -1,5 +1,27 @@
 # Implementing AES in Rust from scratch
 
+## Build instructions
+
+### Linux
+
+```
+python3 -m venv venv
+source venv/bin/activate
+python3 -m pip install maturin
+maturin develop
+python3 example.py
+```
+
+### Windows
+
+```
+python3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python3 -m pip install maturin
+maturin develop
+python3 .\example.py
+```
+
 ## Mathematical basics
 
 ### Galois Field
