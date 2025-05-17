@@ -7,11 +7,8 @@ pub struct CTR;
 impl AesMode for CTR {
     
     fn encrypt(&self, input: &[u8], expanded_key: &[[u8;4];44], nonce: Option<&[u8;8]>) -> Vec<u8> {
-        if input.len() % 16 != 0 {
-            panic!("Input length must be a multiple of 16 bytes");
-        }
         let mut result: Vec<u8> = Vec::new();
-        let mut nonce: [u8; 8] = *nonce.expect("Error");      
+        let nonce: [u8; 8] = *nonce.expect("Error");      
         result.extend_from_slice(&nonce);
         let blocks = process_blocks(input, &nonce,expanded_key);
         result.extend_from_slice(&blocks);
@@ -26,7 +23,7 @@ impl AesMode for CTR {
 
 fn process_blocks(input: &[u8], nonce: &[u8], expanded_key: &[[u8;4];44]) -> Vec<u8>{
     let mut result = Vec::new();
-    let num_chunks = input.len() / 16;
+    let num_chunks = (input.len() + 15) / 16;
     let threads = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1)
@@ -63,14 +60,15 @@ fn process_blocks(input: &[u8], nonce: &[u8], expanded_key: &[[u8;4];44]) -> Vec
                 let keystream = encrypt_block(&counter, &key);
 
                 let start = block_index * 16;
-                let chunk = &input[start..start + 16];
+                let end = ((block_index + 1) * 16).min(input.len());
+                let chunk = &input[start..end];
 
-                let mut encrypted_block = [0u8; 16];
-                for i in 0..16 {
+                let mut encrypted_block = vec![0u8; chunk.len()];
+                for i in 0..chunk.len() {
                     encrypted_block[i] = chunk[i] ^ keystream[i];
                 }
 
-                result_blocks.lock().unwrap()[block_index] = encrypted_block.to_vec();
+                result_blocks.lock().unwrap()[block_index] = encrypted_block;
             }
         });
         handles.push(handle);

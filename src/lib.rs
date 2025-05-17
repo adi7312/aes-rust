@@ -1,5 +1,5 @@
 pub mod aes;
-use aes::core::{pkcs7_pad, pkcs7_unpad, AesCipher, AES};
+use aes::core::{AesCipher, AES};
 use aes::modes::ctr::{CTR};
 
 use pyo3::types::{PyBytes, PyType};
@@ -37,15 +37,13 @@ impl PyAES {
     }
 
     fn encrypt<'p>(&self, py: Python<'p>, plaintext: &[u8]) -> PyResult<Py<PyBytes>> {
-        let padded = pkcs7_pad(plaintext, 16);
-        let ciphertext = self.aes.encrypt(&padded);
+        let ciphertext = self.aes.encrypt(plaintext);
         Ok(PyBytes::new(py, &ciphertext).into())
     }
 
     fn decrypt<'p>(&self, py: Python<'p>, ciphertext: &[u8]) -> PyResult<Py<PyBytes>> {
         let plaintext = self.aes.decrypt(ciphertext);
-        let unpadded = pkcs7_unpad(&plaintext);
-        Ok(PyBytes::new(py, &unpadded).into())
+        Ok(PyBytes::new(py, &plaintext).into())
     }
 }
 
