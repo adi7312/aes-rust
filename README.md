@@ -1,5 +1,10 @@
 # Implementing AES in Rust from scratch
 
+**WARNING/DISCLAIMER**
+
+Following implementation was created for educational purposes only. It shouldn't be used in production environment.
+First rule of crypto: Don't implement your own crypto ;)
+
 ## Build instructions
 
 ### Linux
