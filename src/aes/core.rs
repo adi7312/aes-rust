@@ -83,11 +83,6 @@ impl<T: AesMode + Send + Sync + 'static> AesCipher for AES<T> {
 }
 
 
-fn rcon(round: u8) -> [u8;4]{
-    let mut rcon_vec: [u8;4] = [0u8;4];
-    rcon_vec[0] = RCON[round as usize];
-    rcon_vec
-}
 
 fn xor(a: &[u8;4], b: &[u8;4]) -> [u8;4] {
     let mut result: [u8;4] = [0u8;4];

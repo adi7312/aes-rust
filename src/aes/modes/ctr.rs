@@ -55,7 +55,7 @@ fn process_blocks(input: &[u8], nonce: &[u8], expanded_key: &[[u8;4];44]) -> Vec
             for block_index in start_block..end_block {
                 let mut counter = [0u8; 16];
                 counter[..8].copy_from_slice(&nonce);
-                counter[8..].copy_from_slice(&(block_index as u64).to_le_bytes());
+                counter[8..].copy_from_slice(&(block_index as u64).to_be_bytes());
 
                 let keystream = encrypt_block(&counter, &key);
 
