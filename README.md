@@ -20,11 +20,11 @@ python3 example.py
 ### Windows
 
 ```
-python3 -m venv .venv
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python3 -m pip install maturin
+pip install maturin
 maturin develop
-python3 .\example.py
+python .\example.py
 ```
 
 ## Mathematical basics
